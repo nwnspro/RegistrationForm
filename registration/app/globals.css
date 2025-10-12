@@ -132,11 +132,30 @@ body {
 }
 
 /* Hint */
-.password-hint {
+.password-hint,
+.email-hint {
   font-size: 13px;
-  color: #555555;
+  color: #6b7280;
   margin-top: 6px;
   line-height: 1.4;
+}
+
+.password-hint span.met {
+  text-decoration: line-through;
+  color: #d1d5db;
+  transition: all 0.3s ease;
+}
+
+.password-success {
+  color: #000000;
+  font-weight: 700;
+  display: block;
+}
+
+.password-mismatch {
+  color: #000000;
+  font-weight: 600;
+  display: block;
 }
 
 /* Submit Button */

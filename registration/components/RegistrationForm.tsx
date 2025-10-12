@@ -34,6 +34,45 @@ export default function RegistrationForm() {
   const [formState, setFormState] = useState<FormState>("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    length: false,
+    lowercase: false,
+    uppercase: false,
+    number: false,
+    special: false,
+  });
+  const [emailValidationHint, setEmailValidationHint] = useState("");
+  const [isEmailFocused, setIsEmailFocused] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [isConfirmPasswordFocused, setIsConfirmPasswordFocused] =
+    useState(false);
+
+  const checkEmailValidation = (email: string) => {
+    if (!email) {
+      setEmailValidationHint("Please use Gmail only (@gmail.com)");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@gmail\.com$/;
+    if (!emailRegex.test(email)) {
+      setEmailValidationHint("Please use Gmail only (@gmail.com)");
+      return;
+    }
+
+    if (email === "test@gmail.com") {
+      setEmailValidationHint("This email address is already registered");
+      return;
+    }
+
+    setEmailValidationHint("");
+  };
+
+  const getEmailHint = () => {
+    if (emailValidationHint) {
+      return emailValidationHint;
+    }
+    return "Please use a Gmail address (@gmail.com)";
+  };
 
   const validateEmail = (email: string): string | undefined => {
     if (!email) return "Email is required";
@@ -48,6 +87,18 @@ export default function RegistrationForm() {
     }
 
     return undefined;
+  };
+
+  const checkPasswordRequirements = (password: string) => {
+    const requirements = {
+      length: password.length >= 8 && password.length <= 30,
+      lowercase: /[a-z]/.test(password),
+      uppercase: /[A-Z]/.test(password),
+      number: /\d/.test(password),
+      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+    };
+    setPasswordRequirements(requirements);
+    return requirements;
   };
 
   const validatePassword = (password: string): string | undefined => {
@@ -100,6 +151,16 @@ export default function RegistrationForm() {
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
+    // Real-time password validation
+    if (field === "password") {
+      checkPasswordRequirements(value);
+    }
+
+    // Real-time email validation
+    if (field === "email") {
+      checkEmailValidation(value);
+    }
+
     if (errors[field]) {
       const newErrors = { ...errors };
       delete newErrors[field];
@@ -109,6 +170,40 @@ export default function RegistrationForm() {
     if (formState !== "idle") {
       setFormState("idle");
     }
+  };
+
+  const isFormValid = () => {
+    // Check if all required fields are filled
+    if (
+      !formData.firstName.trim() ||
+      !formData.lastName.trim() ||
+      !formData.email ||
+      !formData.password ||
+      !formData.confirmPassword
+    ) {
+      return false;
+    }
+
+    // Check if all password requirements are met
+    if (!Object.values(passwordRequirements).every((req) => req)) {
+      return false;
+    }
+
+    // Check if passwords match
+    if (formData.password !== formData.confirmPassword) {
+      return false;
+    }
+
+    // Check if email is valid Gmail and not test@gmail.com
+    const emailRegex = /^[^\s@]+@gmail\.com$/;
+    if (
+      !emailRegex.test(formData.email) ||
+      formData.email === "test@gmail.com"
+    ) {
+      return false;
+    }
+
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -204,14 +299,22 @@ export default function RegistrationForm() {
               <input
                 type="email"
                 id="email"
-                placeholder="Email Address (Please use Gmail only)"
+                placeholder="Email Address"
                 value={formData.email}
                 onChange={(e) => handleInputChange("email", e.target.value)}
+                onFocus={() => {
+                  setIsEmailFocused(true);
+                  checkEmailValidation(formData.email);
+                }}
+                onBlur={() => setIsEmailFocused(false)}
                 className={`form-input ${errors.email ? "error" : ""}`}
                 disabled={isSubmitting}
               />
               {errors.email && (
                 <span className="error-message">{errors.email}</span>
+              )}
+              {isEmailFocused && (
+                <div className="email-hint">{getEmailHint()}</div>
               )}
             </div>
 
@@ -225,6 +328,8 @@ export default function RegistrationForm() {
                   onChange={(e) =>
                     handleInputChange("password", e.target.value)
                   }
+                  onFocus={() => setIsPasswordFocused(true)}
+                  onBlur={() => setIsPasswordFocused(false)}
                   className={`form-input ${errors.password ? "error" : ""}`}
                   disabled={isSubmitting}
                 />
@@ -292,6 +397,8 @@ export default function RegistrationForm() {
                   onChange={(e) =>
                     handleInputChange("confirmPassword", e.target.value)
                   }
+                  onFocus={() => setIsConfirmPasswordFocused(true)}
+                  onBlur={() => setIsConfirmPasswordFocused(false)}
                   className={`form-input ${
                     errors.confirmPassword ? "error" : ""
                   }`}
@@ -349,14 +456,60 @@ export default function RegistrationForm() {
               {errors.confirmPassword && (
                 <span className="error-message">{errors.confirmPassword}</span>
               )}
-              <div className="password-hint">
-                8-30 characters with upper, lower, number & symbol
-              </div>
+              {(isPasswordFocused || isConfirmPasswordFocused) && (
+                <div className="password-hint">
+                  {formData.confirmPassword &&
+                  formData.password !== formData.confirmPassword ? (
+                    <span className="password-mismatch">
+                      Passwords don't match
+                    </span>
+                  ) : formData.password &&
+                    Object.values(passwordRequirements).every((req) => req) &&
+                    formData.confirmPassword === formData.password &&
+                    formData.confirmPassword ? (
+                    <span className="password-success">
+                      Nice! You have a strong password
+                    </span>
+                  ) : (
+                    <>
+                      <span
+                        className={passwordRequirements.length ? "met" : ""}
+                      >
+                        8-30 characters
+                      </span>
+                      {" with "}
+                      <span
+                        className={passwordRequirements.uppercase ? "met" : ""}
+                      >
+                        upper
+                      </span>
+                      {", "}
+                      <span
+                        className={passwordRequirements.lowercase ? "met" : ""}
+                      >
+                        lower
+                      </span>
+                      {", "}
+                      <span
+                        className={passwordRequirements.number ? "met" : ""}
+                      >
+                        number
+                      </span>
+                      {" & "}
+                      <span
+                        className={passwordRequirements.special ? "met" : ""}
+                      >
+                        symbol
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !isFormValid()}
               className="submit-button"
             >
               {isSubmitting ? "Creating Account..." : "Let's go"}

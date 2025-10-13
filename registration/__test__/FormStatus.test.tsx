@@ -3,10 +3,9 @@ import { render, screen } from '@testing-library/react'
 import FormStatus from '../components/FormStatus'
 
 describe('FormStatus', () => {
-  it('renders idle state message', () => {
-    render(<FormStatus state="idle" />)
-    expect(screen.getByText(/please fill out all required fields/i)).toBeInTheDocument()
-    expect(screen.getByText(/please fill out all required fields/i)).toHaveClass('status-idle')
+  it('renders nothing for idle state', () => {
+    const { container } = render(<FormStatus state="idle" />)
+    expect(container.firstChild).toBeNull()
   })
 
   it('renders warning state message', () => {

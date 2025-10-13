@@ -95,6 +95,7 @@ body {
 .form-input:focus {
   outline: none;
   border: 2px solid #000000;
+  padding: 11px 15px;
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
 }
 
@@ -131,31 +132,102 @@ body {
   background: #f5f5f5;
 }
 
-/* Hint */
-.password-hint,
-.email-hint {
+/* Inner Card */
+.auth-inner-card {
+  background: #f9fafb;
+  border-radius: 20px;
+  padding: 24px;
+}
+
+/* Status Messages */
+.status-message {
+  padding: 0;
+  font-size: 18px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.status-message.status-warning {
+  color: #333333;
+}
+
+.status-message.status-failure {
+  color: #1f1f1f;
+}
+
+.status-message.status-success {
+  color: #111111;
+}
+
+/* Field Messages */
+.field-message {
   font-size: 13px;
-  color: #6b7280;
   margin-top: 6px;
   line-height: 1.4;
+  padding-left: 16px;
 }
 
-.password-hint span.met {
-  text-decoration: line-through;
-  color: #d1d5db;
-  transition: all 0.3s ease;
+.field-message.hint {
+  color: #6b7280;
+  font-weight: normal;
 }
 
-.password-success {
-  color: #000000;
+.field-message.warning {
+  color: #111111;
+  font-weight: normal;
+}
+
+/* Input Error State */
+.form-input.error {
+  border: 1px solid #000000;
+}
+
+.form-input.error:focus {
+  border: 2px solid #000000;
+  padding: 11px 15px;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Success Container */
+.success-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  gap: 2rem;
+  text-align: center;
+}
+
+.success-title {
+  text-align: center;
+  color: #111111;
+  font-size: 24px;
   font-weight: 700;
-  display: block;
+  line-height: 1.3;
+  margin: 0;
 }
 
-.password-mismatch {
-  color: #000000;
-  font-weight: 600;
-  display: block;
+/* Login Button */
+.login-button {
+  background: #000000;
+  color: white;
+  border: none;
+  padding: 14px 32px;
+  border-radius: 40px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.025em;
+}
+
+.login-button:hover {
+  background: #111111;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Submit Button */
@@ -215,12 +287,37 @@ body {
     border-radius: 24px;
   }
 
-  .auth-title {
+  .auth-title,
+  .success-title {
     font-size: 18px;
   }
 
   .form-input {
     padding: 10px 14px;
     font-size: 14px;
+  }
+
+  .auth-inner-card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .success-container {
+    padding: 2rem 0.5rem;
+    gap: 1.5rem;
+  }
+
+  .login-button {
+    padding: 12px 24px;
+    font-size: 15px;
+  }
+
+  .field-message {
+    font-size: 12px;
+  }
+
+  .status-message {
+    font-size: 13px;
+    padding: 10px 14px;
   }
 }

@@ -1,14 +1,33 @@
+/**
+ * User Registration API Route
+ *
+ * This API supports two database modes:
+ * 1. Mock Database (USE_MOCK_DB=true): In-memory storage for development/testing
+ * 2. PostgreSQL (USE_MOCK_DB=false): Production-ready persistent storage
+ *
+ * Mode is automatically determined by DATABASE_URL environment variable presence.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 
-// For demo purposes, we'll use in-memory storage instead of PostgreSQL
-// In a real application, this would connect to PostgreSQL
+// Determine database mode based on environment configuration
 const USE_MOCK_DB = !process.env.DATABASE_URL
 
-const mockUsers: { id: number; firstName: string; lastName: string; email: string; passwordHash: string; createdAt: string }[] = []
+// Mock database for development/testing (in-memory storage)
+interface MockUser {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+  passwordHash: string
+  createdAt: string
+}
+
+const mockUsers: MockUser[] = []
 let nextId = 1
 
-// Only import pg if we have a real database connection
+// PostgreSQL connection pool (only initialized if DATABASE_URL is set)
 let pool: import('pg').Pool | null = null
 if (!USE_MOCK_DB) {
   try {
@@ -26,6 +45,7 @@ if (!USE_MOCK_DB) {
   }
 }
 
+// Request body structure
 interface UserData {
   firstName: string
   lastName: string
@@ -33,6 +53,37 @@ interface UserData {
   password: string
 }
 
+// User object returned in successful responses
+interface UserResponse {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+  createdAt: string
+}
+
+// API response interfaces
+interface ApiSuccessResponse {
+  success: true
+  message: string
+  data: {
+    user: UserResponse
+  }
+}
+
+interface ApiErrorResponse {
+  success: false
+  error: {
+    message: string
+    field: string
+  }
+}
+
+type ApiResponse = ApiSuccessResponse | ApiErrorResponse
+
+/**
+ * Type guard to validate incoming request body structure
+ */
 const validateUserData = (data: unknown): data is UserData => {
   return (
     data !== null &&
@@ -44,183 +95,232 @@ const validateUserData = (data: unknown): data is UserData => {
     typeof (data as UserData).firstName === 'string' &&
     typeof (data as UserData).lastName === 'string' &&
     typeof (data as UserData).email === 'string' &&
-    typeof (data as UserData).password === 'string' &&
-    (data as UserData).firstName.trim() !== '' &&
-    (data as UserData).lastName.trim() !== '' &&
-    (data as UserData).email.trim() !== '' &&
-    (data as UserData).password.trim() !== ''
+    typeof (data as UserData).password === 'string'
   )
 }
 
-const validateEmail = (email: string): string | null => {
-  const emailRegex = /^[^\s@]+@gmail\.com$/
-  if (!emailRegex.test(email)) {
-    return 'Email must be a Gmail address (@gmail.com)'
-  }
-  
-  if (email === 'test@gmail.com') {
-    return 'This email address is already registered'
-  }
-  
-  return null
-}
-
-const validatePassword = (password: string): string | null => {
-  if (password.length < 8 || password.length > 30) {
-    return 'Password must be between 8 and 30 characters'
-  }
-  
-  const hasLowerCase = /[a-z]/.test(password)
-  const hasUpperCase = /[A-Z]/.test(password)
-  const hasNumber = /\d/.test(password)
-  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
-  
-  if (!hasLowerCase) return 'Password must contain at least one lowercase letter'
-  if (!hasUpperCase) return 'Password must contain at least one uppercase letter'
-  if (!hasNumber) return 'Password must contain at least one number'
-  if (!hasSpecialChar) return 'Password must contain at least one special character'
-  
-  return null
-}
-
-export async function POST(request: NextRequest) {
+/**
+ * POST /api/register
+ * Registers a new user with email and password
+ */
+export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse>> {
   try {
     const body = await request.json()
-    
+
+    // Validate request body structure
     if (!validateUserData(body)) {
-      return NextResponse.json(
-        { error: 'Invalid input data', field: 'general' },
+      return NextResponse.json<ApiErrorResponse>(
+        {
+          success: false,
+          error: {
+            message: 'Invalid input data',
+            field: 'general',
+          },
+        },
         { status: 400 }
       )
     }
 
-    const { firstName, lastName, email, password } = body
-
-    // Validate email
-    const emailError = validateEmail(email)
-    if (emailError) {
-      return NextResponse.json(
-        { error: emailError, field: 'email' },
-        { status: 400 }
-      )
-    }
-
-    // Validate password
-    const passwordError = validatePassword(password)
-    if (passwordError) {
-      return NextResponse.json(
-        { error: passwordError, field: 'password' },
-        { status: 400 }
-      )
-    }
+    // Data normalization: trim and lowercase where appropriate
+    const firstName = body.firstName.trim()
+    const lastName = body.lastName.trim()
+    const email = body.email.trim().toLowerCase() // Email normalization for consistency
+    const password = body.password // Do NOT trim password - preserve exact user input
 
     if (USE_MOCK_DB) {
-      // Mock database operations
-      
-      // Check if user already exists
+      // Mock database operations (development/testing mode)
+
+      // Check for duplicate email (using normalized email)
       const existingUser = mockUsers.find(user => user.email === email)
       if (existingUser) {
-        return NextResponse.json(
-          { error: 'Email address is already registered', field: 'email' },
+        return NextResponse.json<ApiErrorResponse>(
+          {
+            success: false,
+            error: {
+              message: 'Email address is already registered',
+              field: 'email',
+            },
+          },
           { status: 409 }
         )
       }
 
-      // Hash the password
-      const saltRounds = 12
+      // Hash password using bcrypt (industry-standard for password security)
+      const saltRounds = 12 // Higher rounds = more secure but slower
       const hashedPassword = await bcrypt.hash(password, saltRounds)
 
-      // Insert new user
-      const newUser = {
+      // Create new user with normalized data
+      const newUser: MockUser = {
         id: nextId++,
         firstName,
         lastName,
         email,
         passwordHash: hashedPassword,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       }
-      
+
       mockUsers.push(newUser)
 
-      return NextResponse.json({
-        success: true,
-        message: 'User registered successfully',
-        user: {
-          id: newUser.id,
-          firstName: newUser.firstName,
-          lastName: newUser.lastName,
-          email: newUser.email,
-          createdAt: newUser.createdAt
-        }
-      }, { status: 201 })
-      
+      return NextResponse.json<ApiSuccessResponse>(
+        {
+          success: true,
+          message: 'User registered successfully',
+          data: {
+            user: {
+              id: newUser.id,
+              firstName: newUser.firstName,
+              lastName: newUser.lastName,
+              email: newUser.email,
+              createdAt: newUser.createdAt,
+            },
+          },
+        },
+        { status: 201 }
+      )
     } else {
-      // Real PostgreSQL database operations
+      // PostgreSQL database operations (production mode)
+
       if (!pool) {
-        return NextResponse.json(
-          { error: 'Database not available', field: 'general' },
+        return NextResponse.json<ApiErrorResponse>(
+          {
+            success: false,
+            error: {
+              message: 'Database not available',
+              field: 'general',
+            },
+          },
           { status: 503 }
         )
       }
-      
-      // Check if user already exists
+
+      // Check for duplicate email using parameterized query (prevents SQL injection)
       const existingUserQuery = 'SELECT id FROM users WHERE email = $1'
       const existingUserResult = await pool.query(existingUserQuery, [email])
-      
+
       if (existingUserResult.rows.length > 0) {
-        return NextResponse.json(
-          { error: 'Email address is already registered', field: 'email' },
+        return NextResponse.json<ApiErrorResponse>(
+          {
+            success: false,
+            error: {
+              message: 'Email address is already registered',
+              field: 'email',
+            },
+          },
           { status: 409 }
         )
       }
 
-      // Hash the password
-      const saltRounds = 12
+      // Hash password using bcrypt (industry-standard for password security)
+      const saltRounds = 12 // Higher rounds = more secure but slower
       const hashedPassword = await bcrypt.hash(password, saltRounds)
 
-      // Insert new user
+      // Insert new user with parameterized query (prevents SQL injection)
       const insertQuery = `
         INSERT INTO users (first_name, last_name, email, password_hash, created_at)
         VALUES ($1, $2, $3, $4, NOW())
         RETURNING id, first_name, last_name, email, created_at
       `
-      
+
       const insertResult = await pool.query(insertQuery, [
         firstName,
         lastName,
         email,
-        hashedPassword
+        hashedPassword,
       ])
 
       const newUser = insertResult.rows[0]
 
-      return NextResponse.json({
-        success: true,
-        message: 'User registered successfully',
-        user: {
-          id: newUser.id,
-          firstName: newUser.first_name,
-          lastName: newUser.last_name,
-          email: newUser.email,
-          createdAt: newUser.created_at
-        }
-      }, { status: 201 })
+      return NextResponse.json<ApiSuccessResponse>(
+        {
+          success: true,
+          message: 'User registered successfully',
+          data: {
+            user: {
+              id: newUser.id,
+              firstName: newUser.first_name,
+              lastName: newUser.last_name,
+              email: newUser.email,
+              createdAt: newUser.created_at,
+            },
+          },
+        },
+        { status: 201 }
+      )
     }
-
   } catch (error) {
     console.error('Registration error:', error)
-    
-    // Handle database connection errors (only for real database)
-    if (!USE_MOCK_DB && error instanceof Error && error.message.includes('connect')) {
-      return NextResponse.json(
-        { error: 'Database connection failed', field: 'general' },
-        { status: 503 }
+
+    // Handle JSON parsing errors
+    if (error instanceof SyntaxError) {
+      return NextResponse.json<ApiErrorResponse>(
+        {
+          success: false,
+          error: {
+            message: 'Invalid JSON in request body',
+            field: 'general',
+          },
+        },
+        { status: 400 }
       )
     }
 
-    return NextResponse.json(
-      { error: 'Internal server error', field: 'general' },
+    // Handle database connection errors (PostgreSQL mode only)
+    if (!USE_MOCK_DB && error instanceof Error) {
+      if (error.message.includes('connect') || error.message.includes('ECONNREFUSED')) {
+        return NextResponse.json<ApiErrorResponse>(
+          {
+            success: false,
+            error: {
+              message: 'Database connection failed',
+              field: 'general',
+            },
+          },
+          { status: 503 }
+        )
+      }
+    }
+
+    // Handle bcrypt errors
+    if (error instanceof Error && error.message.includes('bcrypt')) {
+      return NextResponse.json<ApiErrorResponse>(
+        {
+          success: false,
+          error: {
+            message: 'Password encryption failed',
+            field: 'general',
+          },
+        },
+        { status: 500 }
+      )
+    }
+
+    // Generic fallback for unexpected errors
+    return NextResponse.json<ApiErrorResponse>(
+      {
+        success: false,
+        error: {
+          message: 'Internal server error',
+          field: 'general',
+        },
+      },
       { status: 500 }
     )
   }
+}
+
+/**
+ * GET /api/register
+ * Returns 405 Method Not Allowed
+ */
+export async function GET(): Promise<NextResponse<ApiErrorResponse>> {
+  return NextResponse.json<ApiErrorResponse>(
+    {
+      success: false,
+      error: {
+        message: 'Method not allowed. Use POST to register.',
+        field: 'general',
+      },
+    },
+    { status: 405 }
+  )
 }

@@ -10,3 +10,5 @@ I put my thinking mainly in the spec, the design and reviewing AI generated big 
 #3 In your opinion, where are the places you could do better?
 
 interact with login, and for the password i reckon can do a dynamic validation to see if user's password fit the requirement.
+
+server side validation is critical for security.

@@ -2,7 +2,11 @@ import { vi, beforeEach, describe, it, expect } from 'vitest'
 import { NextRequest } from 'next/server'
 
 // Create mocks before importing
-const mockQuery = vi.fn()
+const mockSelect = vi.fn()
+const mockInsert = vi.fn()
+const mockEq = vi.fn()
+const mockMaybeSingle = vi.fn()
+const mockSingle = vi.fn()
 
 // Mock bcryptjs
 vi.mock('bcryptjs', () => ({
@@ -11,10 +15,30 @@ vi.mock('bcryptjs', () => ({
   }
 }))
 
-// Mock pg pool
-vi.mock('pg', () => ({
-  Pool: vi.fn().mockImplementation(() => ({
-    query: mockQuery
+// Mock Supabase client
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn(() => ({
+    from: vi.fn((table: string) => ({
+      select: (...args: unknown[]) => {
+        mockSelect(...args)
+        return {
+          eq: (...args: unknown[]) => {
+            mockEq(...args)
+            return {
+              maybeSingle: mockMaybeSingle
+            }
+          }
+        }
+      },
+      insert: (data: unknown) => {
+        mockInsert(data)
+        return {
+          select: () => ({
+            single: mockSingle
+          })
+        }
+      }
+    }))
   }))
 }))
 
@@ -31,9 +55,33 @@ const createMockRequest = (body: object): NextRequest => {
 describe('POST /api/register', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Reset mocks to default behavior
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockSingle.mockResolvedValue({
+      data: {
+        id: 1,
+        first_name: 'John',
+        last_name: 'Doe',
+        email: 'john@gmail.com',
+        created_at: new Date().toISOString()
+      },
+      error: null
+    })
   })
 
   it('successfully registers a new user with mock database', async () => {
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockSingle.mockResolvedValue({
+      data: {
+        id: 1,
+        first_name: 'John',
+        last_name: 'Doe',
+        email: 'john@gmail.com',
+        created_at: new Date().toISOString()
+      },
+      error: null
+    })
+
     const request = createMockRequest({
       firstName: 'John',
       lastName: 'Doe',
@@ -57,6 +105,18 @@ describe('POST /api/register', () => {
   })
 
   it('normalizes email to lowercase', async () => {
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null })
+    mockSingle.mockResolvedValue({
+      data: {
+        id: 2,
+        first_name: 'John',
+        last_name: 'Doe',
+        email: 'jane@gmail.com',
+        created_at: new Date().toISOString()
+      },
+      error: null
+    })
+
     const request = createMockRequest({
       firstName: 'John',
       lastName: 'Doe',
@@ -72,6 +132,12 @@ describe('POST /api/register', () => {
   })
 
   it('rejects duplicate email in mock database', async () => {
+    // Mock duplicate email check to return existing user
+    mockMaybeSingle.mockResolvedValue({
+      data: { id: 1 },
+      error: null
+    })
+
     const requestData = {
       firstName: 'Jane',
       lastName: 'Doe',
@@ -79,10 +145,6 @@ describe('POST /api/register', () => {
       password: 'Password123!'
     }
 
-    // First registration
-    await POST(createMockRequest(requestData))
-
-    // Try to register again with same email
     const response = await POST(createMockRequest(requestData))
     const responseData = await response.json()
 

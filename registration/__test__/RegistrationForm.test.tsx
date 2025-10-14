@@ -201,7 +201,7 @@ describe("RegistrationForm", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/all set! you're ready to go/i)).toBeInTheDocument();
+      expect(screen.getByText(/all set!/i)).toBeInTheDocument();
     });
   });
 
@@ -233,7 +233,7 @@ describe("RegistrationForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /let's go/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/all set! you're ready to go/i)).toBeInTheDocument();
+      expect(screen.getByText(/all set!/i)).toBeInTheDocument();
     });
 
     expect(mockFetch).toHaveBeenCalledWith("/api/register", {
@@ -250,12 +250,17 @@ describe("RegistrationForm", () => {
     });
   });
 
-  it("shows failure state when API returns error", async () => {
+  it("shows warning state when API returns error", async () => {
     const user = userEvent.setup();
     const mockFetch = vi.mocked(fetch);
     mockFetch.mockResolvedValueOnce({
       ok: false,
-      json: async () => ({ error: "Registration failed" }),
+      json: async () => ({
+        error: {
+          field: "email",
+          message: "Email already exists"
+        }
+      }),
     } as Response);
 
     render(<RegistrationForm />);
@@ -277,12 +282,16 @@ describe("RegistrationForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /let's go/i }));
 
+    // WARNING state: No banner, only inline message
     await waitFor(() => {
-      expect(screen.getByText(/registration failed/i)).toBeInTheDocument();
+      expect(screen.getByText(/email already exists/i)).toBeInTheDocument();
     });
+
+    // Should NOT show the "Oops" banner (that's only for FAILURE state)
+    expect(screen.queryByText(/oops-please correct errors below/i)).not.toBeInTheDocument();
   });
 
-  it("shows failure state when network error occurs", async () => {
+  it("shows warning state when network error occurs", async () => {
     const user = userEvent.setup();
     const mockFetch = vi.mocked(fetch);
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
@@ -306,9 +315,13 @@ describe("RegistrationForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /let's go/i }));
 
+    // WARNING state: Form stays visible, no banner message
     await waitFor(() => {
-      expect(screen.getByText(/registration failed/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/first name/i)).toBeInTheDocument();
     });
+
+    // Should NOT show the "Oops" banner
+    expect(screen.queryByText(/oops-please correct errors below/i)).not.toBeInTheDocument();
   });
 
   it("disables submit button and shows loading state during submission", async () => {
@@ -354,7 +367,7 @@ describe("RegistrationForm", () => {
 
     // After successful submission, success message should appear
     await waitFor(() => {
-      expect(screen.getByText(/all set! you're ready to go/i)).toBeInTheDocument();
+      expect(screen.getByText(/all set!/i)).toBeInTheDocument();
     });
   });
 
@@ -393,7 +406,7 @@ describe("RegistrationForm", () => {
     fireEvent.click(screen.getByRole("button", { name: /let's go/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/all set! you're ready to go/i)).toBeInTheDocument();
+      expect(screen.getByText(/all set!/i)).toBeInTheDocument();
     });
 
     // After success, the form is replaced with success view, so inputs no longer exist

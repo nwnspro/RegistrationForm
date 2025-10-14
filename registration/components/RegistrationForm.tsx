@@ -1,33 +1,40 @@
 "use client";
 
 import { useState } from "react";
+import type {
+  FormData,
+  FormState,
+  FieldMessages,
+  TouchedFields,
+} from "@/types/user";
 
-type FormState = "idle" | "warning" | "failure" | "success";
-
-interface FormData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-}
-
-interface FieldMessages {
-  firstName?: { text: string; isWarning: boolean };
-  lastName?: { text: string; isWarning: boolean };
-  email?: { text: string; isWarning: boolean };
-  password?: { text: string; isWarning: boolean };
-  confirmPassword?: { text: string; isWarning: boolean };
-}
-
-interface TouchedFields {
-  firstName: boolean;
-  lastName: boolean;
-  email: boolean;
-  password: boolean;
-  confirmPassword: boolean;
-}
-
+/**
+ * RegistrationForm Component
+ *
+ * Implements 4 form states as required (all validation is client-side):
+ *
+ * 1. IDLE - Initial state, clean form (default)
+ *    - No banner message
+ *    - No inline field messages
+ *    - Trigger: Initial load, or when all validation errors are fixed
+ *
+ * 2. WARNING - Field-level validation (client-side)
+ *    - Shows inline messages under input boxes
+ *    - NO banner message
+ *    - Trigger: User blurs field with error, or types in touched field
+ *    - Example: User leaves email empty, inline message appears
+ *
+ * 3. FAILURE - Form submission with validation errors (client-side)
+ *    - Shows banner: "Oops-Please correct errors below:("
+ *    - Shows inline field error messages
+ *    - Trigger: User clicks submit button with invalid data
+ *    - Banner disappears when user starts typing to fix errors
+ *
+ * 4. SUCCESS - Successful registration
+ *    - Shows full success page with "All set!" message
+ *    - Replaces form with success view
+ *    - Trigger: API returns success response
+ */
 export default function RegistrationForm() {
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
@@ -110,13 +117,28 @@ export default function RegistrationForm() {
     // Only show validation if field was already touched
     if (touchedFields[field]) {
       const message = validateField(field, value);
-      setMessages((prev) => ({
-        ...prev,
+      const newMessages = {
+        ...messages,
         [field]: message,
-      }));
-    }
+      };
+      setMessages(newMessages);
 
-    if (formState !== "idle") {
+      // Check if any validation messages exist
+      const hasAnyMessages = Object.values(newMessages).some((msg) => msg !== null);
+
+      // STATE 2: WARNING - If inline messages exist, stay in WARNING
+      // STATE 1: IDLE - If no messages, go back to IDLE
+      // Clear FAILURE banner when user starts typing to fix errors
+      if (hasAnyMessages && formState === "idle") {
+        setFormState("warning");
+      } else if (!hasAnyMessages && (formState === "warning" || formState === "failure")) {
+        setFormState("idle");
+      } else if (formState === "failure") {
+        // User is fixing errors after failed submit, clear the banner
+        setFormState("idle");
+      }
+    } else if (formState === "failure") {
+      // User is typing in an untouched field while in FAILURE state, clear banner
       setFormState("idle");
     }
   };
@@ -131,6 +153,11 @@ export default function RegistrationForm() {
       ...prev,
       [field]: message,
     }));
+
+    // STATE 2: WARNING - Set when inline message appears
+    if (message && formState === "idle") {
+      setFormState("warning");
+    }
   };
 
   const isFormValid = () => {
@@ -169,12 +196,12 @@ export default function RegistrationForm() {
 
     if (hasErrors) {
       setMessages(newMessages);
-      setFormState("warning");
+      setFormState("failure"); // STATE 3: FAILURE - Submit with validation errors
       return;
     }
 
     setIsSubmitting(true);
-    setFormState("idle");
+    setFormState("idle"); // Reset to STATE 1: IDLE during submission
 
     try {
       const response = await fetch("/api/register", {
@@ -191,7 +218,7 @@ export default function RegistrationForm() {
       });
 
       if (response.ok) {
-        setFormState("success");
+        setFormState("success"); // STATE 4: SUCCESS - Registration successful!
         setFormData({
           firstName: "",
           lastName: "",
@@ -209,7 +236,7 @@ export default function RegistrationForm() {
         });
       } else {
         const errorData = await response.json();
-        setFormState("failure");
+        setFormState("warning"); // STATE 2: WARNING - Server error (shows inline message only)
         if (errorData.error?.field && errorData.error?.message) {
           setMessages({
             [errorData.error.field]: {
@@ -220,7 +247,7 @@ export default function RegistrationForm() {
         }
       }
     } catch {
-      setFormState("failure");
+      setFormState("warning"); // STATE 2: WARNING - Network error (shows inline message only)
     } finally {
       setIsSubmitting(false);
     }
@@ -231,13 +258,19 @@ export default function RegistrationForm() {
     setFormState("idle");
   };
 
-  // Success view
+  // STATE 4: SUCCESS - Show success page
   if (formState === "success") {
     return (
       <div className="auth-container">
         <div className="auth-card">
           <div className="success-container">
-            <h1 className="success-title">All set! You're ready to go :)</h1>
+            <h1 className="success-title">
+              All set!
+              <br />
+              You're ready to go
+              <br />
+              :)
+            </h1>
             <button onClick={handleLoginClick} className="login-button">
               Login
             </button>
@@ -247,21 +280,19 @@ export default function RegistrationForm() {
     );
   }
 
-  // Registration form view
+  // STATE 1: IDLE / STATE 2: WARNING / STATE 3: FAILURE - Show registration form
   return (
     <div className="auth-container">
       <div className="auth-card">
         <h1 className="auth-title">Create Your Account</h1>
+        {/* STATE 3: FAILURE - Submit with validation errors, show banner */}
         {formState === "failure" && (
-          <div className="status-message status-failure">
-            Registration failed. Please try again.
-          </div>
-        )}
-        {formState === "warning" && (
           <div className="status-message status-warning">
             Oops-Please correct errors below:(
           </div>
         )}
+        {/* STATE 2: WARNING - Only inline messages, NO banner */}
+        {/* STATE 1: IDLE - No messages at all */}
 
         <form onSubmit={handleSubmit} className="auth-form">
           {/* First Name */}

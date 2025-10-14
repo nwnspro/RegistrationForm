@@ -1,11 +1,14 @@
 // Form data
-export interface UserRegistrationData {
+export interface FormData {
   firstName: string;
   lastName: string;
   email: string;
   password: string;
   confirmPassword: string;
 }
+
+// Alias for API requests
+export type UserRegistrationData = FormData;
 
 // Database record
 export interface User {
@@ -26,14 +29,23 @@ export interface UserResponse {
   createdAt: string;
 }
 
-// Form errors
-export interface ValidationErrors {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  password?: string;
-  confirmPassword?: string;
+// Field validation messages
+export interface FieldMessages {
+  firstName?: { text: string; isWarning: boolean };
+  lastName?: { text: string; isWarning: boolean };
+  email?: { text: string; isWarning: boolean };
+  password?: { text: string; isWarning: boolean };
+  confirmPassword?: { text: string; isWarning: boolean };
+}
+
+// Tracked fields (for showing validation)
+export interface TouchedFields {
+  firstName: boolean;
+  lastName: boolean;
+  email: boolean;
+  password: boolean;
+  confirmPassword: boolean;
 }
 
 // Form states
-export type FormState = "idle" | "error" | "success";
+export type FormState = "idle" | "warning" | "failure" | "success";

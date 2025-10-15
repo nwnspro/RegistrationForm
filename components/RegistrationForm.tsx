@@ -1,20 +1,34 @@
 "use client";
 
 import { useState } from "react";
-
-
+import type {
+  FormData,
+  FieldMessages,
+  TouchedFields,
+  FormState,
+  FailureType,
+} from "@/types/user";
 
 // ============================================================================
 // FORM STATUS COMPONENT
 // ============================================================================
 
-function FormStatus({ state }: { state: FormState }) {
+function FormStatus({ state, failureType }: { state: FormState; failureType: FailureType }) {
   if (state === "failure") {
-    return (
-      <div className="status-message status-warning">
-        Oops-Please correct errors below:(
-      </div>
-    );
+    if (failureType === "validation") {
+      return (
+        <div className="status-message status-warning">
+          Oops-Please correct errors below:(
+        </div>
+      );
+    }
+    if (failureType === "server") {
+      return (
+        <div className="status-message status-warning">
+          Something went wrong on our end. Please try again.
+        </div>
+      );
+    }
   }
   return null;
 }
@@ -26,23 +40,23 @@ function FormStatus({ state }: { state: FormState }) {
 /**
  * RegistrationForm Component
  *
- * Implements 4 form states as required (all validation is client-side):
+ * Implements 4 form states as required:
  *
  * 1. IDLE - Initial state, clean form (default)
  *    - No banner message
  *    - No inline field messages
  *    - Trigger: Initial load, or when all validation errors are fixed
  *
- * 2. WARNING - Field-level validation (client-side)
+ * 2. WARNING - Field-level validation
  *    - Shows inline messages under input boxes
  *    - NO banner message
- *    - Trigger: User blurs field with error, or types in touched field
+ *    - Trigger: User blurs field with error, or types in touched field, or field-specific server error
  *    - Example: User leaves email empty, inline message appears
  *
- * 3. FAILURE - Form submission with validation errors (client-side)
- *    - Shows banner: "Oops-Please correct errors below:("
- *    - Shows inline field error messages
- *    - Trigger: User clicks submit button with invalid data
+ * 3. FAILURE - Form submission errors
+ *    - Validation failure: Shows banner "Oops-Please correct errors below:(" + inline field errors
+ *    - Server error: Shows banner "Something went wrong on our end. Please try again."
+ *    - Trigger: User clicks submit with invalid data, or server/network error
  *    - Banner disappears when user starts typing to fix errors
  *
  * 4. SUCCESS - Successful registration
@@ -72,6 +86,7 @@ export default function RegistrationForm() {
     confirmPassword: false,
   });
   const [formState, setFormState] = useState<FormState>("idle");
+  const [failureType, setFailureType] = useState<FailureType>("validation");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -98,12 +113,18 @@ export default function RegistrationForm() {
         return null;
 
       case "email":
-        if (!value) return { text: "Email can't be empty", isWarning: true };
-        const emailRegex = /^[^\s@]+@gmail\.com$/;
-        if (!emailRegex.test(value))
+        const trimmedEmail = value.trim().toLowerCase();
+        if (!trimmedEmail) return { text: "Email can't be empty", isWarning: true };
+        // Check if it has basic email structure (has @ and some text before/after)
+        const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!basicEmailRegex.test(trimmedEmail))
+          return { text: "Please put a valid email", isWarning: true };
+        // Check if it's specifically a Gmail address
+        const gmailRegex = /^[^\s@]+@gmail\.com$/;
+        if (!gmailRegex.test(trimmedEmail))
           return { text: "Must be a Gmail address", isWarning: true };
-        // Check if email is already registered (client-side check)
-        if (value.toLowerCase() === "test@gmail.com")
+        // Check if email is already registered (case-insensitive)
+        if (trimmedEmail === "test@gmail.com")
           return { text: "Email address is already registered", isWarning: true };
         return null;
 
@@ -230,6 +251,7 @@ export default function RegistrationForm() {
 
     if (hasErrors) {
       setMessages(newMessages);
+      setFailureType("validation");
       setFormState("failure"); // STATE 3: FAILURE - Submit with validation errors
       return;
     }
@@ -244,9 +266,9 @@ export default function RegistrationForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim().toLowerCase(),
           password: formData.password,
         }),
       });
@@ -270,18 +292,24 @@ export default function RegistrationForm() {
         });
       } else {
         const errorData = await response.json();
-        setFormState("warning"); // STATE 2: WARNING - Server error (inline only)
+        // If server returns a specific field error, show inline message with warning state
         if (errorData.error?.field && errorData.error?.message) {
+          setFormState("warning"); // STATE 2: WARNING - Field-specific server error
           setMessages({
             [errorData.error.field]: {
               text: errorData.error.message,
               isWarning: true,
             },
           });
+        } else {
+          // Generic server error - show banner with failure state
+          setFailureType("server");
+          setFormState("failure"); // STATE 3: FAILURE - Generic server error
         }
       }
     } catch {
-      setFormState("warning"); // STATE 2: WARNING - Network error
+      setFailureType("server");
+      setFormState("failure"); // STATE 3: FAILURE - Network error
     } finally {
       setIsSubmitting(false);
     }
@@ -327,7 +355,7 @@ export default function RegistrationForm() {
         <h1 className="auth-title">Create Your Account</h1>
 
         {/* Form status banner (only shows for FAILURE state) */}
-        <FormStatus state={formState} />
+        <FormStatus state={formState} failureType={failureType} />
 
         <form onSubmit={handleSubmit} className="auth-form">
           {/* First Name */}
@@ -415,6 +443,9 @@ export default function RegistrationForm() {
                 value={formData.password}
                 onChange={(e) => handleInputChange("password", e.target.value)}
                 onBlur={() => handleBlur("password")}
+                onKeyDown={(e) => {
+                  if (e.key === " ") e.preventDefault();
+                }}
                 onCopy={(e) => e.preventDefault()}
                 onCut={(e) => e.preventDefault()}
                 className={`form-input ${
@@ -494,6 +525,9 @@ export default function RegistrationForm() {
                   handleInputChange("confirmPassword", e.target.value)
                 }
                 onBlur={() => handleBlur("confirmPassword")}
+                onKeyDown={(e) => {
+                  if (e.key === " ") e.preventDefault();
+                }}
                 onCopy={(e) => e.preventDefault()}
                 onCut={(e) => e.preventDefault()}
                 onPaste={(e) => e.preventDefault()}

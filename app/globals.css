@@ -280,16 +280,25 @@ body {
   text-decoration: underline;
 }
 
-/* Responsive */
-@media (max-width: 480px) {
+/* Responsive Design */
+
+/* Extra Small Devices (320px - 375px) */
+@media (max-width: 375px) {
+  .auth-container {
+    padding: 8px;
+  }
+
   .auth-card {
-    padding: 24px 20px;
-    border-radius: 24px;
+    padding: 20px 16px;
+    border-radius: 20px;
+    min-width: 280px;
+    width: 100%;
   }
 
   .auth-title,
   .success-title {
-    font-size: 18px;
+    font-size: 20px;
+    margin-bottom: 20px;
   }
 
   .form-input {
@@ -297,18 +306,147 @@ body {
     font-size: 14px;
   }
 
-  .auth-inner-card {
-    padding: 20px;
-    border-radius: 16px;
+  .form-input:focus {
+    padding: 9px 13px;
+  }
+
+  .password-input-container input.form-input {
+    padding-right: 48px !important;
+  }
+
+  .password-toggle {
+    right: 10px;
+  }
+
+  .password-toggle svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .auth-form {
+    gap: 14px;
+  }
+
+  .form-group {
+    gap: 6px;
+  }
+
+  .field-message {
+    font-size: 11px;
+    padding-left: 14px;
+  }
+
+  .status-message {
+    font-size: 15px;
+    margin-bottom: 14px;
+  }
+
+  .submit-button {
+    padding: 12px 14px;
+    font-size: 15px;
+    margin-top: 8px;
+  }
+
+  .terms {
+    font-size: 11px;
+    margin-top: 8px;
   }
 
   .success-container {
-    padding: 2rem 0.5rem;
+    padding: 1.5rem 0.5rem;
     gap: 1.5rem;
   }
 
   .login-button {
     padding: 12px 24px;
+    font-size: 14px;
+  }
+}
+
+/* Small Mobile Devices (376px - 480px) */
+@media (min-width: 376px) and (max-width: 480px) {
+  .auth-container {
+    padding: 10px;
+  }
+
+  .auth-card {
+    padding: 28px 20px;
+    border-radius: 24px;
+    width: 100%;
+  }
+
+  .auth-title,
+  .success-title {
+    font-size: 22px;
+    margin-bottom: 22px;
+  }
+
+  .form-input {
+    padding: 11px 15px;
+    font-size: 14px;
+  }
+
+  .form-input:focus {
+    padding: 10px 14px;
+  }
+
+  .password-toggle svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .auth-form {
+    gap: 15px;
+  }
+
+  .field-message {
+    font-size: 12px;
+    padding-left: 15px;
+  }
+
+  .status-message {
+    font-size: 16px;
+    margin-bottom: 15px;
+  }
+
+  .submit-button {
+    padding: 13px 15px;
+    font-size: 15px;
+  }
+
+  .terms {
+    font-size: 12px;
+  }
+
+  .success-container {
+    padding: 2rem 0.75rem;
+    gap: 1.75rem;
+  }
+
+  .login-button {
+    padding: 13px 26px;
+    font-size: 15px;
+  }
+}
+
+/* Mobile Devices (481px - 640px) */
+@media (min-width: 481px) and (max-width: 640px) {
+  .auth-container {
+    padding: 12px;
+  }
+
+  .auth-card {
+    padding: 32px 24px;
+    border-radius: 26px;
+  }
+
+  .auth-title,
+  .success-title {
+    font-size: 23px;
+  }
+
+  .form-input {
+    padding: 11px 15px;
     font-size: 15px;
   }
 
@@ -317,7 +455,107 @@ body {
   }
 
   .status-message {
-    font-size: 13px;
-    padding: 10px 14px;
+    font-size: 17px;
+  }
+
+  .submit-button,
+  .login-button {
+    font-size: 16px;
+  }
+}
+
+/* Tablet Devices (641px - 1024px) */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .auth-container {
+    padding: 16px;
+  }
+
+  .auth-card {
+    padding: 36px 28px;
+    max-width: 460px;
+  }
+
+  .auth-title,
+  .success-title {
+    font-size: 26px;
+    margin-bottom: 26px;
+  }
+
+  .form-input {
+    padding: 13px 17px;
+    font-size: 15px;
+  }
+
+  .form-input:focus {
+    padding: 12px 16px;
+  }
+
+  .submit-button,
+  .login-button {
+    padding: 15px 18px;
+    font-size: 16px;
+  }
+}
+
+/* Large Screens (> 1024px) */
+@media (min-width: 1025px) {
+  .auth-container {
+    padding: 20px;
+  }
+
+  .auth-card {
+    padding: 40px;
+    max-width: 480px;
+  }
+
+  .submit-button:hover:not(:disabled),
+  .login-button:hover {
+    transform: translateY(-2px);
+  }
+}
+
+/* Landscape orientation on mobile */
+@media (max-height: 600px) and (orientation: landscape) {
+  .auth-container {
+    height: auto;
+    min-height: 100vh;
+    padding: 20px 10px;
+  }
+
+  .auth-card {
+    padding: 20px;
+    margin: 20px auto;
+  }
+
+  .auth-title,
+  .success-title {
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+
+  .auth-form {
+    gap: 12px;
+  }
+
+  .submit-button {
+    margin-top: 8px;
+  }
+
+  .success-container {
+    padding: 1.5rem 1rem;
+    gap: 1.25rem;
+  }
+}
+
+/* Very large screens */
+@media (min-width: 1440px) {
+  .auth-card {
+    max-width: 500px;
+    padding: 48px;
+  }
+
+  .auth-title,
+  .success-title {
+    font-size: 28px;
   }
 }

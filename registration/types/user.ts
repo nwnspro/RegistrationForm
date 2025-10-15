@@ -1,10 +1,18 @@
-// Form data
+// Form data (client-side form)
 export interface FormData {
   firstName: string;
   lastName: string;
   email: string;
   password: string;
   confirmPassword: string;
+}
+
+// API request body (no confirmPassword)
+export interface UserData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
 }
 
 // Alias for API requests
@@ -20,13 +28,43 @@ export interface User {
   createdAt: string | Date;
 }
 
-// API response
+// API response - user object
 export interface UserResponse {
   id: number;
   firstName: string;
   lastName: string;
   email: string;
   createdAt: string;
+}
+
+// API response - success
+export interface ApiSuccessResponse {
+  success: true;
+  message: string;
+  data: {
+    user: UserResponse;
+  };
+}
+
+// API response - error
+export interface ApiErrorResponse {
+  success: false;
+  error: {
+    message: string;
+    field: string;
+  };
+}
+
+// API response - union type
+export type ApiResponse = ApiSuccessResponse | ApiErrorResponse;
+
+// Validation result (server-side)
+export interface ValidationResult {
+  valid: boolean;
+  error?: {
+    message: string;
+    field: string;
+  };
 }
 
 // Field validation messages
@@ -49,3 +87,6 @@ export interface TouchedFields {
 
 // Form states
 export type FormState = "idle" | "warning" | "failure" | "success";
+
+// Failure types
+export type FailureType = "validation" | "server";

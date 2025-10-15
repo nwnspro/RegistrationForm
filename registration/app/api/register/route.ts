@@ -5,60 +5,136 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { supabase } from "@/lib/db"; // or '@/lib/supabase' depending on where you put it
-
-// Request body structure
-interface UserData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-}
-
-// User object returned in successful responses
-interface UserResponse {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  createdAt: string;
-}
-
-// API response interfaces
-interface ApiSuccessResponse {
-  success: true;
-  message: string;
-  data: {
-    user: UserResponse;
-  };
-}
-
-interface ApiErrorResponse {
-  success: false;
-  error: {
-    message: string;
-    field: string;
-  };
-}
-
-type ApiResponse = ApiSuccessResponse | ApiErrorResponse;
+import { supabase } from "@/lib/db";
+import type {
+  UserData,
+  ApiSuccessResponse,
+  ApiErrorResponse,
+  ApiResponse,
+  ValidationResult,
+} from "@/types/user";
 
 /**
- * Type guard to validate incoming request body structure
+ * Validate and normalize registration data
+ * Returns normalized data if valid, or error if invalid
  */
-const validateUserData = (data: unknown): data is UserData => {
-  return (
-    data !== null &&
-    typeof data === "object" &&
-    "firstName" in data &&
-    "lastName" in data &&
-    "email" in data &&
-    "password" in data &&
-    typeof (data as UserData).firstName === "string" &&
-    typeof (data as UserData).lastName === "string" &&
-    typeof (data as UserData).email === "string" &&
-    typeof (data as UserData).password === "string"
-  );
+const validateAndNormalize = (
+  data: unknown
+):
+  | { valid: true; data: UserData }
+  | { valid: false; error: { message: string; field: string } } => {
+  // Check structure
+  if (
+    !data ||
+    typeof data !== "object" ||
+    !("firstName" in data) ||
+    !("lastName" in data) ||
+    !("email" in data) ||
+    !("password" in data) ||
+    typeof (data as UserData).firstName !== "string" ||
+    typeof (data as UserData).lastName !== "string" ||
+    typeof (data as UserData).email !== "string" ||
+    typeof (data as UserData).password !== "string"
+  ) {
+    return {
+      valid: false,
+      error: { message: "Invalid input data", field: "general" },
+    };
+  }
+
+  const body = data as UserData;
+
+  // Normalize
+  const firstName = body.firstName.trim();
+  const lastName = body.lastName.trim();
+  const email = body.email.trim().toLowerCase();
+  const password = body.password;
+
+  // Validate first name
+  if (!firstName) {
+    return {
+      valid: false,
+      error: { message: "First name can't be empty", field: "firstName" },
+    };
+  }
+
+  // Validate last name
+  if (!lastName) {
+    return {
+      valid: false,
+      error: { message: "Last name can't be empty", field: "lastName" },
+    };
+  }
+
+  // Validate email
+  if (!email) {
+    return {
+      valid: false,
+      error: { message: "Email can't be empty", field: "email" },
+    };
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return {
+      valid: false,
+      error: { message: "Please put a valid email", field: "email" },
+    };
+  }
+
+  if (!/^[^\s@]+@gmail\.com$/.test(email)) {
+    return {
+      valid: false,
+      error: { message: "Must be a Gmail address", field: "email" },
+    };
+  }
+
+  if (email === "test@gmail.com") {
+    return {
+      valid: false,
+      error: {
+        message: "Email address is already registered",
+        field: "email",
+      },
+    };
+  }
+
+  // Validate password
+  if (!password) {
+    return {
+      valid: false,
+      error: { message: "Password can't be empty", field: "password" },
+    };
+  }
+
+  if (password.length < 8 || password.length > 30) {
+    return {
+      valid: false,
+      error: {
+        message: "Password must be 8-30 characters",
+        field: "password",
+      },
+    };
+  }
+
+  if (
+    !/[a-z]/.test(password) ||
+    !/[A-Z]/.test(password) ||
+    !/\d/.test(password) ||
+    !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+  ) {
+    return {
+      valid: false,
+      error: {
+        message: "Password needs uppercase, lowercase, number and symbol",
+        field: "password",
+      },
+    };
+  }
+
+  return {
+    valid: true,
+    data: { firstName, lastName, email, password },
+  };
 };
 
 /**
@@ -68,76 +144,27 @@ const validateUserData = (data: unknown): data is UserData => {
 export async function POST(
   request: NextRequest
 ): Promise<NextResponse<ApiResponse>> {
-  const requestId = `req_${Date.now()}_${Math.random()
-    .toString(36)
-    .substr(2, 9)}`;
-  console.log(`\n📥 [${requestId}] New registration request`);
+  console.log("New registration request");
 
   try {
     const body = await request.json();
-    console.log(`📋 [${requestId}] Request body:`, {
-      firstName: body.firstName,
-      lastName: body.lastName,
-      email: body.email,
-      password: body.password ? "***" + body.password.slice(-3) : undefined,
-    });
 
-    // Validate request body structure
-    if (!validateUserData(body)) {
-      console.log(`❌ [${requestId}] Validation failed: Invalid input data`);
-
+    // Validate and normalize in one step
+    const validation = validateAndNormalize(body);
+    if (!validation.valid) {
       return NextResponse.json<ApiErrorResponse>(
-        {
-          success: false,
-          error: {
-            message: "Invalid input data",
-            field: "general",
-          },
-        },
+        { success: false, error: validation.error },
         { status: 400 }
       );
     }
 
-    // Data normalization
-    const firstName = body.firstName.trim();
-    const lastName = body.lastName.trim();
-    const email = body.email.trim().toLowerCase();
-    const password = body.password;
-
-    console.log(`🔄 [${requestId}] Normalized data - Email: ${email}`);
-    console.log(`🗄️  [${requestId}] Database mode: Supabase`);
-
-    // Check for duplicate email
-    console.log(`🔍 [${requestId}] Checking for duplicate email...`);
-    const { data: existingUser, error: checkError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle(); // Use maybeSingle() instead of single() - doesn't throw error if no match
-
-    if (existingUser) {
-      console.log(`⚠️  [${requestId}] Duplicate email found: ${email}`);
-
-      return NextResponse.json<ApiErrorResponse>(
-        {
-          success: false,
-          error: {
-            message: "Email address is already registered",
-            field: "email",
-          },
-        },
-        { status: 409 }
-      );
-    }
+    const { firstName, lastName, email, password } = validation.data;
 
     // Hash password
-    console.log(`🔐 [${requestId}] Hashing password...`);
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
-    console.log(`✅ [${requestId}] Password hashed successfully`);
 
     // Insert new user
-    console.log(`💾 [${requestId}] Inserting user into Supabase...`);
     const { data: newUser, error: insertError } = await supabase
       .from("users")
       .insert({
@@ -150,12 +177,27 @@ export async function POST(
       .single();
 
     if (insertError) {
-      console.error(`❌ [${requestId}] Insert error:`, insertError);
+      console.error("Database error:", insertError);
+
+      // Check for unique constraint violation (duplicate email)
+      if (insertError.code === "23505") {
+        return NextResponse.json<ApiErrorResponse>(
+          {
+            success: false,
+            error: {
+              message: "Email address is already registered",
+              field: "email",
+            },
+          },
+          { status: 409 }
+        );
+      }
+
       return NextResponse.json<ApiErrorResponse>(
         {
           success: false,
           error: {
-            message: "Failed to create user",
+            message: "Internal server error",
             field: "general",
           },
         },
@@ -163,10 +205,7 @@ export async function POST(
       );
     }
 
-    console.log(`✅ [${requestId}] User inserted successfully!`);
-    console.log(
-      `👤 [${requestId}] New user ID: ${newUser.id}, Email: ${newUser.email}`
-    );
+    console.log("User registered successfully:", newUser.email);
 
     return NextResponse.json<ApiSuccessResponse>(
       {
@@ -187,35 +226,6 @@ export async function POST(
   } catch (error) {
     console.error("Registration error:", error);
 
-    // Handle JSON parsing errors
-    if (error instanceof SyntaxError) {
-      return NextResponse.json<ApiErrorResponse>(
-        {
-          success: false,
-          error: {
-            message: "Invalid JSON in request body",
-            field: "general",
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    // Handle bcrypt errors
-    if (error instanceof Error && error.message.includes("bcrypt")) {
-      return NextResponse.json<ApiErrorResponse>(
-        {
-          success: false,
-          error: {
-            message: "Password encryption failed",
-            field: "general",
-          },
-        },
-        { status: 500 }
-      );
-    }
-
-    // Generic fallback
     return NextResponse.json<ApiErrorResponse>(
       {
         success: false,
@@ -227,21 +237,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
-
-/**
- * GET /api/register
- * Returns 405 Method Not Allowed
- */
-export async function GET(): Promise<NextResponse<ApiErrorResponse>> {
-  return NextResponse.json<ApiErrorResponse>(
-    {
-      success: false,
-      error: {
-        message: "Method not allowed. Use POST to register.",
-        field: "general",
-      },
-    },
-    { status: 405 }
-  );
 }

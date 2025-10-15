@@ -3,31 +3,60 @@
 import { useState } from "react";
 import type {
   FormData,
-  FormState,
   FieldMessages,
   TouchedFields,
+  FormState,
+  FailureType,
 } from "@/types/user";
+
+// ============================================================================
+// FORM STATUS COMPONENT
+// ============================================================================
+
+function FormStatus({ state, failureType }: { state: FormState; failureType: FailureType }) {
+  if (state === "failure") {
+    if (failureType === "validation") {
+      return (
+        <div className="status-message status-warning">
+          Oops-Please correct errors below:(
+        </div>
+      );
+    }
+    if (failureType === "server") {
+      return (
+        <div className="status-message status-warning">
+          Something went wrong on our end. Please try again.
+        </div>
+      );
+    }
+  }
+  return null;
+}
+
+// ============================================================================
+// MAIN REGISTRATION FORM COMPONENT
+// ============================================================================
 
 /**
  * RegistrationForm Component
  *
- * Implements 4 form states as required (all validation is client-side):
+ * Implements 4 form states as required:
  *
  * 1. IDLE - Initial state, clean form (default)
  *    - No banner message
  *    - No inline field messages
  *    - Trigger: Initial load, or when all validation errors are fixed
  *
- * 2. WARNING - Field-level validation (client-side)
+ * 2. WARNING - Field-level validation
  *    - Shows inline messages under input boxes
  *    - NO banner message
- *    - Trigger: User blurs field with error, or types in touched field
+ *    - Trigger: User blurs field with error, or types in touched field, or field-specific server error
  *    - Example: User leaves email empty, inline message appears
  *
- * 3. FAILURE - Form submission with validation errors (client-side)
- *    - Shows banner: "Oops-Please correct errors below:("
- *    - Shows inline field error messages
- *    - Trigger: User clicks submit button with invalid data
+ * 3. FAILURE - Form submission errors
+ *    - Validation failure: Shows banner "Oops-Please correct errors below:(" + inline field errors
+ *    - Server error: Shows banner "Something went wrong on our end. Please try again."
+ *    - Trigger: User clicks submit with invalid data, or server/network error
  *    - Banner disappears when user starts typing to fix errors
  *
  * 4. SUCCESS - Successful registration
@@ -36,6 +65,10 @@ import type {
  *    - Trigger: API returns success response
  */
 export default function RegistrationForm() {
+  // ============================================================================
+  // STATE MANAGEMENT
+  // ============================================================================
+
   const [formData, setFormData] = useState<FormData>({
     firstName: "",
     lastName: "",
@@ -53,10 +86,17 @@ export default function RegistrationForm() {
     confirmPassword: false,
   });
   const [formState, setFormState] = useState<FormState>("idle");
+  const [failureType, setFailureType] = useState<FailureType>("validation");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Validate field and return message
+  // ============================================================================
+  // VALIDATION LOGIC
+  // ============================================================================
+
+  /**
+   * Client-side validation rules
+   */
   const validateField = (
     field: keyof FormData,
     value: string
@@ -73,12 +113,19 @@ export default function RegistrationForm() {
         return null;
 
       case "email":
-        if (!value) return { text: "Email can't be empty", isWarning: true };
-        const emailRegex = /^[^\s@]+@gmail\.com$/;
-        if (!emailRegex.test(value))
+        const trimmedEmail = value.trim().toLowerCase();
+        if (!trimmedEmail) return { text: "Email can't be empty", isWarning: true };
+        // Check if it has basic email structure (has @ and some text before/after)
+        const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!basicEmailRegex.test(trimmedEmail))
+          return { text: "Please put a valid email", isWarning: true };
+        // Check if it's specifically a Gmail address
+        const gmailRegex = /^[^\s@]+@gmail\.com$/;
+        if (!gmailRegex.test(trimmedEmail))
           return { text: "Must be a Gmail address", isWarning: true };
-        if (value === "test@gmail.com")
-          return { text: "This email is already registered", isWarning: true };
+        // Check if email is already registered (case-insensitive)
+        if (trimmedEmail === "test@gmail.com")
+          return { text: "Email address is already registered", isWarning: true };
         return null;
 
       case "password":
@@ -111,6 +158,14 @@ export default function RegistrationForm() {
     }
   };
 
+  // ============================================================================
+  // EVENT HANDLERS
+  // ============================================================================
+
+  /**
+   * Handle input change
+   * STATE 2: WARNING - Shows inline validation when field is touched
+   */
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
@@ -124,30 +179,35 @@ export default function RegistrationForm() {
       setMessages(newMessages);
 
       // Check if any validation messages exist
-      const hasAnyMessages = Object.values(newMessages).some((msg) => msg !== null);
+      const hasAnyMessages = Object.values(newMessages).some(
+        (msg) => msg !== null
+      );
 
-      // STATE 2: WARNING - If inline messages exist, stay in WARNING
-      // STATE 1: IDLE - If no messages, go back to IDLE
-      // Clear FAILURE banner when user starts typing to fix errors
+      // STATE 2: WARNING - If inline messages exist
+      // STATE 1: IDLE - If no messages
+      // Clear FAILURE banner when user starts typing
       if (hasAnyMessages && formState === "idle") {
         setFormState("warning");
-      } else if (!hasAnyMessages && (formState === "warning" || formState === "failure")) {
+      } else if (
+        !hasAnyMessages &&
+        (formState === "warning" || formState === "failure")
+      ) {
         setFormState("idle");
       } else if (formState === "failure") {
-        // User is fixing errors after failed submit, clear the banner
         setFormState("idle");
       }
     } else if (formState === "failure") {
-      // User is typing in an untouched field while in FAILURE state, clear banner
       setFormState("idle");
     }
   };
 
+  /**
+   * Handle field blur
+   * STATE 2: WARNING - Trigger validation on blur
+   */
   const handleBlur = (field: keyof FormData) => {
-    // Mark field as touched
     setTouchedFields((prev) => ({ ...prev, [field]: true }));
 
-    // Show validation message
     const message = validateField(field, formData[field]);
     setMessages((prev) => ({
       ...prev,
@@ -160,16 +220,11 @@ export default function RegistrationForm() {
     }
   };
 
-  const isFormValid = () => {
-    return Object.keys(formData).every((field) => {
-      const message = validateField(
-        field as keyof FormData,
-        formData[field as keyof FormData]
-      );
-      return message === null;
-    });
-  };
-
+  /**
+   * Handle form submission
+   * STATE 3: FAILURE - Show banner if validation fails
+   * STATE 4: SUCCESS - Registration successful
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -196,12 +251,13 @@ export default function RegistrationForm() {
 
     if (hasErrors) {
       setMessages(newMessages);
+      setFailureType("validation");
       setFormState("failure"); // STATE 3: FAILURE - Submit with validation errors
       return;
     }
 
     setIsSubmitting(true);
-    setFormState("idle"); // Reset to STATE 1: IDLE during submission
+    setFormState("idle");
 
     try {
       const response = await fetch("/api/register", {
@@ -210,15 +266,15 @@ export default function RegistrationForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim().toLowerCase(),
           password: formData.password,
         }),
       });
 
       if (response.ok) {
-        setFormState("success"); // STATE 4: SUCCESS - Registration successful!
+        setFormState("success"); // STATE 4: SUCCESS
         setFormData({
           firstName: "",
           lastName: "",
@@ -236,27 +292,39 @@ export default function RegistrationForm() {
         });
       } else {
         const errorData = await response.json();
-        setFormState("warning"); // STATE 2: WARNING - Server error (shows inline message only)
+        // If server returns a specific field error, show inline message with warning state
         if (errorData.error?.field && errorData.error?.message) {
+          setFormState("warning"); // STATE 2: WARNING - Field-specific server error
           setMessages({
             [errorData.error.field]: {
               text: errorData.error.message,
               isWarning: true,
             },
           });
+        } else {
+          // Generic server error - show banner with failure state
+          setFailureType("server");
+          setFormState("failure"); // STATE 3: FAILURE - Generic server error
         }
       }
     } catch {
-      setFormState("warning"); // STATE 2: WARNING - Network error (shows inline message only)
+      setFailureType("server");
+      setFormState("failure"); // STATE 3: FAILURE - Network error
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleLoginClick = () => {
-    // Reset to show registration form again (no real login page yet)
+  /**
+   * Reset form to idle state
+   */
+  const resetForm = () => {
     setFormState("idle");
   };
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   // STATE 4: SUCCESS - Show success page
   if (formState === "success") {
@@ -271,7 +339,7 @@ export default function RegistrationForm() {
               <br />
               :)
             </h1>
-            <button onClick={handleLoginClick} className="login-button">
+            <button onClick={resetForm} className="login-button">
               Login
             </button>
           </div>
@@ -285,14 +353,9 @@ export default function RegistrationForm() {
     <div className="auth-container">
       <div className="auth-card">
         <h1 className="auth-title">Create Your Account</h1>
-        {/* STATE 3: FAILURE - Submit with validation errors, show banner */}
-        {formState === "failure" && (
-          <div className="status-message status-warning">
-            Oops-Please correct errors below:(
-          </div>
-        )}
-        {/* STATE 2: WARNING - Only inline messages, NO banner */}
-        {/* STATE 1: IDLE - No messages at all */}
+
+        {/* Form status banner (only shows for FAILURE state) */}
+        <FormStatus state={formState} failureType={failureType} />
 
         <form onSubmit={handleSubmit} className="auth-form">
           {/* First Name */}
@@ -380,6 +443,9 @@ export default function RegistrationForm() {
                 value={formData.password}
                 onChange={(e) => handleInputChange("password", e.target.value)}
                 onBlur={() => handleBlur("password")}
+                onKeyDown={(e) => {
+                  if (e.key === " ") e.preventDefault();
+                }}
                 onCopy={(e) => e.preventDefault()}
                 onCut={(e) => e.preventDefault()}
                 className={`form-input ${
@@ -459,6 +525,9 @@ export default function RegistrationForm() {
                   handleInputChange("confirmPassword", e.target.value)
                 }
                 onBlur={() => handleBlur("confirmPassword")}
+                onKeyDown={(e) => {
+                  if (e.key === " ") e.preventDefault();
+                }}
                 onCopy={(e) => e.preventDefault()}
                 onCut={(e) => e.preventDefault()}
                 onPaste={(e) => e.preventDefault()}

@@ -10,14 +10,45 @@ import type {
 } from "@/types/user";
 
 // ============================================================================
-// FORM STATUS COMPONENT
+// FORM STATUS COMPONENT - DISPLAYS ALL 4 FORM STATES
 // ============================================================================
-
-function FormStatus({ state, failureType }: { state: FormState; failureType: FailureType }) {
+/**
+ * This component visually represents ALL 4 required form states:
+ *
+ * STATE 1: IDLE
+ *   - No banner shown
+ *   - Form is clean, no errors
+ *   - Test: "does not show any status message initially (idle state)"
+ *
+ * STATE 2: WARNING
+ *   - No banner shown (inline field messages only)
+ *   - Shows inline error messages under specific fields
+ *   - Test: "shows warning state when submitting with invalid email format"
+ *
+ * STATE 3: FAILURE
+ *   - Shows banner at top of form
+ *   - Two types:
+ *     a) Validation failure: "Oops-Please correct errors below:("
+ *     b) Server error: "Something went wrong on our end. Please try again."
+ *   - Tests: "shows FAILURE state when submitting empty form", "shows failure state with server error message"
+ *
+ * STATE 4: SUCCESS
+ *   - Replaces entire form with success page (rendered in main component, not here)
+ *   - Test: "submits form successfully with valid data"
+ */
+function FormStatus({
+  state,
+  failureType,
+}: {
+  state: FormState;
+  failureType: FailureType;
+}) {
+  // STATE 3: FAILURE - Show banner with error message
   if (state === "failure") {
     if (failureType === "validation") {
       return (
         <div className="status-message status-warning">
+          {/* Tests that check for this: lines 40-56, 58-88, 90-120 in RegistrationForm.test.tsx */}
           Oops-Please correct errors below:(
         </div>
       );
@@ -25,11 +56,16 @@ function FormStatus({ state, failureType }: { state: FormState; failureType: Fai
     if (failureType === "server") {
       return (
         <div className="status-message status-warning">
+          {/* Tests that check for this: lines 296-327, 329-367 in RegistrationForm.test.tsx */}
           Something went wrong on our end. Please try again.
         </div>
       );
     }
   }
+
+  // STATE 1: IDLE & STATE 2: WARNING - No banner shown
+  // For WARNING state, inline messages appear under fields instead
+  // Tests: lines 29-38 (idle), 254-294 (warning with field-specific errors)
   return null;
 }
 
@@ -96,6 +132,8 @@ export default function RegistrationForm() {
 
   /**
    * Client-side validation rules
+   * TESTED BY: Lines 459-514 (blur validation), 489-513 (inline error clearing), 663-756 (email validation)
+   * If you modify these rules, the corresponding tests WILL FAIL
    */
   const validateField = (
     field: keyof FormData,
@@ -103,33 +141,44 @@ export default function RegistrationForm() {
   ): { text: string; isWarning: boolean } | null => {
     switch (field) {
       case "firstName":
-        if (!value.trim())
+        // TESTED BY: Line 460-472 (blur), Line 840-853 (whitespace)
+        if (!value)
           return { text: "First name can't be empty", isWarning: true };
-        return null;
 
       case "lastName":
-        if (!value.trim())
+        // TESTED BY: Line 474-486 (blur), Line 855-868 (whitespace)
+        if (!value)
           return { text: "Last name can't be empty", isWarning: true };
-        return null;
 
       case "email":
-        const trimmedEmail = value.trim().toLowerCase();
-        if (!trimmedEmail) return { text: "Email can't be empty", isWarning: true };
+        // TESTED BY: Lines 664-740 (format validation), Lines 742-756 (registered email), Lines 758-837 (case-insensitive)
+        const lowerEmail = value.toLowerCase();
+        if (!lowerEmail)
+          return { text: "Email can't be empty", isWarning: true };
         // Check if it has basic email structure (has @ and some text before/after)
+        // TESTED BY: Lines 664-678 (no @ sign), 680-693 (no domain), 695-708 (no extension)
         const basicEmailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!basicEmailRegex.test(trimmedEmail))
+        if (!basicEmailRegex.test(lowerEmail))
           return { text: "Please put a valid email", isWarning: true };
         // Check if it's specifically a Gmail address
+        // TESTED BY: Lines 710-723, Line 58-88 (non-Gmail rejection)
         const gmailRegex = /^[^\s@]+@gmail\.com$/;
-        if (!gmailRegex.test(trimmedEmail))
+        if (!gmailRegex.test(lowerEmail))
           return { text: "Must be a Gmail address", isWarning: true };
         // Check if email is already registered (case-insensitive)
-        if (trimmedEmail === "test@gmail.com")
-          return { text: "Email address is already registered", isWarning: true };
+        // TESTED BY: Lines 742-756, Lines 758-803 (case variations)
+        if (lowerEmail === "test@gmail.com")
+          return {
+            text: "Email address is already registered",
+            isWarning: true,
+          };
         return null;
 
       case "password":
+        // TESTED BY: Lines 973-998 (space prevention), Lines 1000-1033 (space validation), API test lines 267-384 (all password requirements)
         if (!value) return { text: "Password can't be empty", isWarning: true };
+        if (/\s/.test(value))
+          return { text: "Password can't contain spaces", isWarning: true };
         if (value.length < 8 || value.length > 30)
           return { text: "Password must be 8-30 characters", isWarning: true };
         const hasLower = /[a-z]/.test(value);
@@ -144,6 +193,7 @@ export default function RegistrationForm() {
         return null;
 
       case "confirmPassword":
+        // TESTED BY: Lines 90-120 (mismatch), Lines 537-564 (dynamic validation)
         if (!value)
           return {
             text: "Please confirm your password",
@@ -165,6 +215,8 @@ export default function RegistrationForm() {
   /**
    * Handle input change
    * STATE 2: WARNING - Shows inline validation when field is touched
+   * TESTED BY: Lines 489-513 (inline error clearing), Lines 515-535 (FAILURE banner clearing)
+   * If you remove or modify the state transitions, tests WILL FAIL
    */
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -204,6 +256,8 @@ export default function RegistrationForm() {
   /**
    * Handle field blur
    * STATE 2: WARNING - Trigger validation on blur
+   * TESTED BY: Lines 459-487 (firstName/lastName blur validation)
+   * If you remove onBlur handlers from inputs, tests WILL FAIL
    */
   const handleBlur = (field: keyof FormData) => {
     setTouchedFields((prev) => ({ ...prev, [field]: true }));
@@ -224,6 +278,8 @@ export default function RegistrationForm() {
    * Handle form submission
    * STATE 3: FAILURE - Show banner if validation fails
    * STATE 4: SUCCESS - Registration successful
+   * TESTED BY: Lines 40-56 (empty form), Lines 167-207 (valid form), Lines 209-252 (API success)
+   * If you modify submission logic or validation checks, tests WILL FAIL
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,9 +322,9 @@ export default function RegistrationForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim(),
-          email: formData.email.trim().toLowerCase(),
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email.toLowerCase(),
           password: formData.password,
         }),
       });
@@ -358,7 +414,7 @@ export default function RegistrationForm() {
         <FormStatus state={formState} failureType={failureType} />
 
         <form onSubmit={handleSubmit} className="auth-form">
-          {/* First Name */}
+          {/* First Name - TESTED BY: Lines 460-472, 840-902 */}
           <div className="form-group">
             <input
               type="text"
@@ -367,6 +423,9 @@ export default function RegistrationForm() {
               value={formData.firstName}
               onChange={(e) => handleInputChange("firstName", e.target.value)}
               onBlur={() => handleBlur("firstName")}
+              onKeyDown={(e) => {
+                if (e.key === " ") e.preventDefault();
+              }}
               className={`form-input ${
                 messages.firstName?.isWarning ? "error" : ""
               }`}
@@ -383,7 +442,7 @@ export default function RegistrationForm() {
             )}
           </div>
 
-          {/* Last Name */}
+          {/* Last Name - TESTED BY: Lines 474-486, 904-936 */}
           <div className="form-group">
             <input
               type="text"
@@ -392,6 +451,9 @@ export default function RegistrationForm() {
               value={formData.lastName}
               onChange={(e) => handleInputChange("lastName", e.target.value)}
               onBlur={() => handleBlur("lastName")}
+              onKeyDown={(e) => {
+                if (e.key === " ") e.preventDefault();
+              }}
               className={`form-input ${
                 messages.lastName?.isWarning ? "error" : ""
               }`}
@@ -408,7 +470,7 @@ export default function RegistrationForm() {
             )}
           </div>
 
-          {/* Email */}
+          {/* Email - TESTED BY: Lines 58-88, 254-294, 489-513, 663-837 */}
           <div className="form-group">
             <input
               type="email"
@@ -417,6 +479,9 @@ export default function RegistrationForm() {
               value={formData.email}
               onChange={(e) => handleInputChange("email", e.target.value)}
               onBlur={() => handleBlur("email")}
+              onKeyDown={(e) => {
+                if (e.key === " ") e.preventDefault();
+              }}
               className={`form-input ${
                 messages.email?.isWarning ? "error" : ""
               }`}
@@ -433,7 +498,7 @@ export default function RegistrationForm() {
             )}
           </div>
 
-          {/* Password */}
+          {/* Password - TESTED BY: Lines 146-165, 595-621, 973-998, 1000-1033 */}
           <div className="form-group">
             <div className="password-input-container">
               <input
@@ -444,6 +509,7 @@ export default function RegistrationForm() {
                 onChange={(e) => handleInputChange("password", e.target.value)}
                 onBlur={() => handleBlur("password")}
                 onKeyDown={(e) => {
+                  // TESTED BY: Lines 973-998 - If you remove this, space prevention test WILL FAIL
                   if (e.key === " ") e.preventDefault();
                 }}
                 onCopy={(e) => e.preventDefault()}
@@ -513,7 +579,7 @@ export default function RegistrationForm() {
             )}
           </div>
 
-          {/* Confirm Password */}
+          {/* Confirm Password - TESTED BY: Lines 90-120, 537-564, 987-998, 610-621 */}
           <div className="form-group">
             <div className="password-input-container">
               <input
@@ -526,10 +592,12 @@ export default function RegistrationForm() {
                 }
                 onBlur={() => handleBlur("confirmPassword")}
                 onKeyDown={(e) => {
+                  // TESTED BY: Lines 987-998 - If you remove this, space prevention test WILL FAIL
                   if (e.key === " ") e.preventDefault();
                 }}
                 onCopy={(e) => e.preventDefault()}
                 onCut={(e) => e.preventDefault()}
+                // TESTED BY: Lines 610-621 - If you remove onPaste, paste prevention test WILL FAIL
                 onPaste={(e) => e.preventDefault()}
                 className={`form-input ${
                   messages.confirmPassword?.isWarning ? "error" : ""
@@ -596,11 +664,13 @@ export default function RegistrationForm() {
             )}
           </div>
 
+          {/* Submit Button - TESTED BY: Lines 122-144, 369-414, 623-661 */}
           <button
             type="submit"
             disabled={isSubmitting}
             className="submit-button"
           >
+            {/* TESTED BY: Lines 399-402 (loading text), Line 604 (button text) */}
             {isSubmitting ? "Creating Account..." : "Let's go"}
           </button>
 

@@ -392,7 +392,7 @@ export default function RegistrationForm() {
             <h1 className="success-title">
               All set!
               <br />
-              You're ready to go
+              You&apos;re ready to go
               <br />
               :)
             </h1>

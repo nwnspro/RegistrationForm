@@ -11,7 +11,6 @@ import type {
   ApiSuccessResponse,
   ApiErrorResponse,
   ApiResponse,
-  ValidationResult,
 } from "@/types/user";
 
 /**

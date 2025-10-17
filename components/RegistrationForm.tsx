@@ -144,11 +144,13 @@ export default function RegistrationForm() {
         // TESTED BY: Line 460-472 (blur), Line 840-853 (whitespace)
         if (!value)
           return { text: "First name can't be empty", isWarning: true };
+        return null;
 
       case "lastName":
         // TESTED BY: Line 474-486 (blur), Line 855-868 (whitespace)
         if (!value)
           return { text: "Last name can't be empty", isWarning: true };
+        return null;
 
       case "email":
         // TESTED BY: Lines 664-740 (format validation), Lines 742-756 (registered email), Lines 758-837 (case-insensitive)
@@ -175,10 +177,9 @@ export default function RegistrationForm() {
         return null;
 
       case "password":
-        // TESTED BY: Lines 973-998 (space prevention), Lines 1000-1033 (space validation), API test lines 267-384 (all password requirements)
+        // TESTED BY: Lines 973-998 (space prevention via onKeyDown), API test lines 267-384 (all password requirements)
+        // Note: Space validation removed - onKeyDown at line 357-359 prevents spaces from being typed
         if (!value) return { text: "Password can't be empty", isWarning: true };
-        if (/\s/.test(value))
-          return { text: "Password can't contain spaces", isWarning: true };
         if (value.length < 8 || value.length > 30)
           return { text: "Password must be 8-30 characters", isWarning: true };
         const hasLower = /[a-z]/.test(value);

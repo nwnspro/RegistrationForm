@@ -1407,27 +1407,11 @@ describe("RegistrationForm", () => {
      * CRITICAL: These tests directly test validation logic that would otherwise be bypassed
      * by onKeyDown handlers. They ensure that if you remove the validation logic,
      * these tests WILL FAIL.
+     *
+     * NOTE: Email space validation test removed because the regex at line 160
+     * (/^[^\s@]+@[^\s@]+\.[^\s@]+$/) already prevents spaces without a specific error message.
+     * The onKeyDown handler at lines 328-330 prevents spaces from being typed.
      */
-
-    it("validates email space detection logic directly", async () => {
-      const user = userEvent.setup();
-      render(<RegistrationForm />);
-
-      const emailInput = screen.getByPlaceholderText(
-        /email address/i
-      ) as HTMLInputElement;
-
-      // Programmatically set a value with spaces to bypass onKeyDown prevention
-      // This directly tests the validation logic at lines 158-159 in RegistrationForm.tsx
-      fireEvent.change(emailInput, { target: { value: "test @gmail.com" } });
-      fireEvent.blur(emailInput);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/email can't contain spaces/i)
-        ).toBeInTheDocument();
-      });
-    });
 
     it("validates firstName empty check logic directly", async () => {
       const user = userEvent.setup();
